@@ -54,11 +54,11 @@ namespace xiangrpc {
 
 		std::mutex lock_;
 
-		ReactorType m_reactor_typr_{ SubReactor };
+		ReactorType m_reactor_type_{ SubReactor };
 
 		std::set<int> m_fds_;											//此reactor接管的连接fd
 
-		std::vector<std::pair<int, epoll_event>> m_pending_add_fds_;	//等待添加监控的事件队列
+		std::set<std::pair<int, epoll_event>> m_pending_add_fds_;	//等待添加监控的事件队列
 																		//存在主reactor将连接监听添加到工作reactor的行为
 
 		std::vector<int> m_pending_del_fds_;							//等待移除监控的事件队列
@@ -89,5 +89,20 @@ namespace xiangrpc {
 		return reactor_instance;
 
 	}
+	 
+	class CoroutineTaskQueue {
+	public:
+		static CoroutineTaskQueue& getCorotineTaskQueue() {
+			static CoroutineTaskQueue instance;
+			return instance;
+		}
+		void push(FdEvent* fd);
+
+		FdEvent* pop();
+	private:
+		std::queue<FdEvent*> m_task_;
+		std::mutex m_mutex_;
+
+	};
 
 }

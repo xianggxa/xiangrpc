@@ -57,6 +57,8 @@ namespace xiangrpc {
 			if (coronode->next_ != nullptr) {
 				coronode->next_->pre_ = coronode->pre_;
 			}
+			coronode->pre_ = nullptr;
+			coronode->next_ = nullptr;
 
 		}
 

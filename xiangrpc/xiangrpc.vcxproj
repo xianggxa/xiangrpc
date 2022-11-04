@@ -83,6 +83,7 @@
     <ClCompile Include="reactor.cpp" />
     <ClCompile Include="rlog.cpp" />
     <ClCompile Include="tcp_buffer.cpp" />
+    <ClCompile Include="tcp_connection.cpp" />
     <ClCompile Include="tcp_server.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -94,6 +95,7 @@
     <ClInclude Include="resource.h" />
     <ClInclude Include="rlog.h" />
     <ClInclude Include="tcp_buffer.h" />
+    <ClInclude Include="tcp_connection.h" />
     <ClInclude Include="tcp_server.h" />
   </ItemGroup>
   <ItemGroup>

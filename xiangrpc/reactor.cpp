@@ -41,9 +41,9 @@ namespace xiangrpc {
 		}
 		{
 			std::lock_guard<std::mutex> lock{ lock_ };
-			m_pending_add_fds_.push_back(std::make_pair(fd,event));
+			m_pending_add_fds_.insert(std::make_pair(fd,event));
 		}
-
+		wakeUp();
 	}
 
 	void Reactor::delEvent(int fd)
@@ -76,6 +76,7 @@ namespace xiangrpc {
 		addTask(func);
 	}
 
+
 	void Reactor::loop()
 	{
 		if (m_is_looping_) {
@@ -95,7 +96,7 @@ namespace xiangrpc {
 
 			}
 			//通过addcoro添加连接对应的协程到io线程的reactor的task队列并在这里执行
-			for (size_t i = 0; i < tmp_task.size(); i++) {						//执行等待的未初始化的协程任务
+			for (size_t i = 0; i < tmp_task.size(); i++) {						//执行等待的未初始化的协程任务和epoll中已唤醒连接
 																				//如进入io协程中的input
 				if (tmp_task[i]) {
 					tmp_task[i]();
@@ -106,7 +107,7 @@ namespace xiangrpc {
 
 			if (num < 0) {
 				LOG_ERROR("epoll_wait error ,errno=%s", strerror(errno));
-			}
+			}   
 			else {
 				for (int i = 0; i < num; i++) {
 					epoll_event now_event = ep_event[i];
@@ -120,22 +121,56 @@ namespace xiangrpc {
 						}
 					}
 					else {
-						if(ptr!=)
+						int fd = ptr->getFd();
+						if (ptr != nullptr) {
+							if ((!(now_event.events & EPOLLIN)) && (!(now_event.events & EPOLLOUT))) {
+								LOG_ERROR("socket %d unknow event %d", fd, now_event.events);
+								delEventInLoopThread(fd);
+							}
+							else {
+								if (m_reactor_type_==SubReactor) {
+									delEventInLoopThread(fd) ;
+									m_pending_task_.push_back(std::bind(xiangrpc::Resume,ptr->getCoroutine()));
+
+								}
+								else {
+									//主reactor直接将连接分配
+									xiangrpc::Resume(ptr->getCoroutine());
+								}
+
+							}
+
+
+						}
+
 
 					}
-
+				}
+				std::set<std::pair<int, epoll_event>> tmp_add;
+				std::vector<int> tmp_del;
+				{
+					std::lock_guard<std::mutex> lock{ lock_ };
+					tmp_add.swap(m_pending_add_fds_);
+					tmp_del.swap(m_pending_del_fds_);
 
 				}
+				for (auto i : tmp_add) {
+					addEventInLoopThread(i.first, i.second);
+				}
+				for (auto i : tmp_del) {
+					delEventInLoopThread(i);
+				}
+				
+
+
+
+
 			}
 
 
-
+			m_is_looping_ = false;
 
 		}
-
-
-		m_is_looping_ = false;
-
 	}
 
 	void Reactor::stop()
@@ -149,7 +184,7 @@ namespace xiangrpc {
 
 	void Reactor::setReactorType(ReactorType type)
 	{
-		m_reactor_typr_ = type;
+		m_reactor_type_ = type;
 	}
 
 	void Reactor::wakeUp()
@@ -220,6 +255,27 @@ namespace xiangrpc {
 		m_fds_.erase(it);
 		LOG_DEBUG("fd del successed, fd = %d", fd);
 
+	}
+
+
+	void CoroutineTaskQueue::push(FdEvent* fd)
+	{
+		std::lock_guard<std::mutex> lock{ m_mutex_ };
+		m_task_.push(fd);
+	}
+
+	FdEvent* CoroutineTaskQueue::pop()
+	{
+		FdEvent* tmp = nullptr;
+
+		{
+			std::lock_guard<std::mutex> lock{ m_mutex_ };
+			if (m_task_.size() >= 1) {
+				tmp = m_task_.front();
+				m_task_.pop();
+			}
+		}
+		return tmp; 
 	}
 
 
